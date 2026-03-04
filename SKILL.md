@@ -68,13 +68,23 @@ $PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id> [--date
 
 若无基准频率，`loss` 和 `ra` 为 `null`，`status` 为 `"no_baseline"`。
 
-### 设置基准频率
+### 设置基准频率（首次录音，独立流程）
 
 ```bash
 $PYTHON stringpulse.py baseline <音频文件路径> --racket <racket_id> [--date <ISO日期>]
 ```
 
-将本次分析结果设为基准频率。返回格式同 `analyze`，`status` 为 `"baseline_set"`。
+直接分析音频并设为基准频率（不询问用户，适合已知需要设基准的场景）。
+返回格式同 `analyze`，`status` 为 `"baseline_set"`。
+
+### 升级已有测量为基准频率
+
+```bash
+$PYTHON stringpulse.py promote-baseline --racket <racket_id> --measurement <measurement_id>
+```
+
+将 `analyze` 已保存的记录原地升级为基准频率，**不新增测量记录**。
+返回：`{"id", "date", "frequency", "loss": 0.0, "ra": 100.0, "status": "baseline_set", "image_path"}`
 
 ---
 
@@ -114,9 +124,12 @@ $PYTHON stringpulse.py baseline <音频文件路径> --racket <racket_id> [--dat
 analyze 返回 loss=null / status="no_baseline" 时：
   → 告知用户："这只球拍还没有基准频率。"
   → 问："是否将这次测量（XXX Hz）设为基准？"
-  → 若是：执行 baseline <同一音频路径> --racket <id> --date <TG消息发送时间ISO>
+  → 若是：执行 promote-baseline --racket <id> --measurement <analyze返回的id>
   → 发送结果图片并说明已设为基准
 ```
+
+⚠️ **不要**再次执行 `baseline <音频路径>`，否则会产生重复记录。
+`promote-baseline` 直接升级已有记录，不新增测量。
 
 ---
 

@@ -691,6 +691,45 @@ def cmd_baseline(args):
     _do_analyze(args.audio, args.racket, set_as_baseline=True, date_str=args.date)
 
 
+def cmd_promote_baseline(args):
+    """将已存在的测量记录设为基准频率，不新增记录。"""
+    data   = _load_data()
+    racket = _find_racket(data, args.racket)
+    if racket is None:
+        _error(f"未找到球拍 ID: {args.racket}")
+
+    measurement = next(
+        (m for m in racket.get("measurements", []) if m["id"] == args.measurement),
+        None,
+    )
+    if measurement is None:
+        _error(f"未找到测量记录 ID: {args.measurement}")
+
+    racket["baseline"] = {
+        "frequency": measurement["frequency"],
+        "date":      measurement["date"],
+    }
+    measurement["loss"] = 0.0
+    measurement["ra"]   = 100.0
+    _save_data(data)
+
+    status = "baseline_set"
+    image_path = IMAGES_DIR / f"{measurement['id']}.png"
+    img = generate_result_image(racket, measurement, status, image_path)
+
+    result = {
+        "id":         measurement["id"],
+        "date":       measurement["date"],
+        "frequency":  measurement["frequency"],
+        "loss":       0.0,
+        "ra":         100.0,
+        "status":     status,
+        "saved":      True,
+        "image_path": img,
+    }
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 # ══════════════════════════════════════════════════════════════════════
 # 工具函数
 # ══════════════════════════════════════════════════════════════════════
@@ -807,6 +846,11 @@ def main():
     p_bas.add_argument("--racket", required=True, help="球拍 ID")
     p_bas.add_argument("--date",   default=None,  help="录制日期（TG 消息发送时间，ISO 格式）")
 
+    # promote-baseline
+    p_promo = sub.add_parser("promote-baseline", help="将已有测量记录设为基准频率（不新增记录）")
+    p_promo.add_argument("--racket",      required=True, help="球拍 ID")
+    p_promo.add_argument("--measurement", required=True, help="测量记录 ID")
+
     args = parser.parse_args()
 
     try:
@@ -820,6 +864,8 @@ def main():
             cmd_analyze(args)
         elif args.command == "baseline":
             cmd_baseline(args)
+        elif args.command == "promote-baseline":
+            cmd_promote_baseline(args)
         else:
             parser.print_help()
             sys.exit(1)
