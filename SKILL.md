@@ -45,8 +45,10 @@ $PYTHON stringpulse.py delete --racket <racket_id>
 ### 分析音频（测量）
 
 ```bash
-$PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id>
+$PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id> [--date <ISO日期>]
 ```
+
+`--date` 为 TG 消息发送时间（ISO 格式，如 `2026-03-04T07:43:00Z`）。**每次调用都应传入**，以便在文件名不含日期时作为回退。
 
 返回：
 
@@ -69,7 +71,7 @@ $PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id>
 ### 设置基准频率
 
 ```bash
-$PYTHON stringpulse.py baseline <音频文件路径> --racket <racket_id>
+$PYTHON stringpulse.py baseline <音频文件路径> --racket <racket_id> [--date <ISO日期>]
 ```
 
 将本次分析结果设为基准频率。返回格式同 `analyze`，`status` 为 `"baseline_set"`。
@@ -96,7 +98,7 @@ $PYTHON stringpulse.py baseline <音频文件路径> --racket <racket_id>
   → 执行 list，展示球拍列表，让用户选一只
   → 提示用户录制音频（见下方提示语）
   → 用户发送文件 → 获取 MediaPath
-  → 执行 analyze <MediaPath> --racket <id>
+  → 执行 analyze <MediaPath> --racket <id> --date <TG消息发送时间ISO>
   → 发送结果图片（image_path 字段），再用 1-2 句总结
 ```
 
@@ -112,7 +114,7 @@ $PYTHON stringpulse.py baseline <音频文件路径> --racket <racket_id>
 analyze 返回 loss=null / status="no_baseline" 时：
   → 告知用户："这只球拍还没有基准频率。"
   → 问："是否将这次测量（XXX Hz）设为基准？"
-  → 若是：执行 baseline <同一音频路径> --racket <id>
+  → 若是：执行 baseline <同一音频路径> --racket <id> --date <TG消息发送时间ISO>
   → 发送结果图片并说明已设为基准
 ```
 
@@ -155,6 +157,7 @@ analyze 返回 loss=null / status="no_baseline" 时：
 
 ## 技术说明（供调试参考）
 
+- **记录日期优先级**：① 文件名含日期格式（如 `20260304`、`2026-03-04`、`20260304_143000`）→ 取文件名日期；② 传入 `--date` → 取 TG 消息发送时间；③ 两者均无 → 取当前系统时间
 - **音频格式**：支持 M4A/AAC/WAV/MP4 等，通过 ffmpeg 解码为 PCM float32
 - **FFT 算法**：Cooley-Tukey，窗口大小最大 8192 样本
 - **频率范围**：400–800 Hz（网球拍弦床振动频率范围）

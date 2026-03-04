@@ -8,6 +8,7 @@ import argparse
 import json
 import math
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -618,7 +619,7 @@ def cmd_delete(args):
     print(json.dumps({"deleted": args.racket}))
 
 
-def _do_analyze(audio_path, racket_id, set_as_baseline=False):
+def _do_analyze(audio_path, racket_id, set_as_baseline=False, date_str=None):
     data  = _load_data()
     racket = _find_racket(data, racket_id)
     if racket is None:
@@ -637,7 +638,9 @@ def _do_analyze(audio_path, racket_id, set_as_baseline=False):
         ra   = None
         status = "baseline_set" if set_as_baseline else "no_baseline"
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = (_parse_date_from_filename(audio_path)
+           or date_str
+           or datetime.now(timezone.utc).isoformat())
     measurement_id = str(uuid.uuid4())
 
     measurement = {
@@ -679,18 +682,51 @@ def _do_analyze(audio_path, racket_id, set_as_baseline=False):
 def cmd_analyze(args):
     if not os.path.exists(args.audio):
         _error(f"音频文件不存在: {args.audio}")
-    _do_analyze(args.audio, args.racket, set_as_baseline=False)
+    _do_analyze(args.audio, args.racket, set_as_baseline=False, date_str=args.date)
 
 
 def cmd_baseline(args):
     if not os.path.exists(args.audio):
         _error(f"音频文件不存在: {args.audio}")
-    _do_analyze(args.audio, args.racket, set_as_baseline=True)
+    _do_analyze(args.audio, args.racket, set_as_baseline=True, date_str=args.date)
 
 
 # ══════════════════════════════════════════════════════════════════════
 # 工具函数
 # ══════════════════════════════════════════════════════════════════════
+
+def _parse_date_from_filename(audio_path):
+    """从音频文件名中提取日期，返回 ISO 字符串；识别失败则返回 None。"""
+    stem = Path(audio_path).stem
+    patterns = [
+        # YYYY-MM-DD_HH-MM-SS / YYYY.MM.DD HH:MM:SS 等（带时间）
+        (r'(\d{4})[-_./](\d{2})[-_./](\d{2})[_ T](\d{2})[-_:.](\d{2})[-_:.](\d{2})', 6),
+        # YYYYMMDD_HHMMSS（无分隔符）
+        (r'(\d{4})(\d{2})(\d{2})[_ T](\d{2})(\d{2})(\d{2})', 6),
+        # YYYY-MM-DD / YYYY_MM_DD / YYYY.MM.DD（仅日期）
+        (r'(\d{4})[-_.](\d{2})[-_.](\d{2})', 3),
+        # YYYYMMDD（纯 8 位，不紧邻其他数字）
+        (r'(?<!\d)(\d{4})(\d{2})(\d{2})(?!\d)', 3),
+    ]
+    for pat, n in patterns:
+        m = re.search(pat, stem)
+        if not m:
+            continue
+        g = m.groups()
+        try:
+            if n == 6:
+                dt = datetime(int(g[0]), int(g[1]), int(g[2]),
+                              int(g[3]), int(g[4]), int(g[5]),
+                              tzinfo=timezone.utc)
+            else:
+                dt = datetime(int(g[0]), int(g[1]), int(g[2]),
+                              tzinfo=timezone.utc)
+            if 2000 <= dt.year <= 2100:
+                return dt.isoformat()
+        except ValueError:
+            continue
+    return None
+
 
 def _error(msg):
     print(json.dumps({"error": msg}, ensure_ascii=False), file=sys.stderr)
@@ -724,11 +760,13 @@ def main():
     p_ana = sub.add_parser("analyze", help="分析音频，保存测量记录")
     p_ana.add_argument("audio",    help="音频文件路径")
     p_ana.add_argument("--racket", required=True, help="球拍 ID")
+    p_ana.add_argument("--date",   default=None,  help="录制日期（TG 消息发送时间，ISO 格式）")
 
     # baseline
     p_bas = sub.add_parser("baseline", help="分析音频，设为基准频率")
     p_bas.add_argument("audio",    help="音频文件路径")
     p_bas.add_argument("--racket", required=True, help="球拍 ID")
+    p_bas.add_argument("--date",   default=None,  help="录制日期（TG 消息发送时间，ISO 格式）")
 
     args = parser.parse_args()
 
