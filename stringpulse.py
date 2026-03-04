@@ -619,7 +619,7 @@ def cmd_delete(args):
     print(json.dumps({"deleted": args.racket}))
 
 
-def _do_analyze(audio_path, racket_id, set_as_baseline=False, date_str=None):
+def _do_analyze(audio_path, racket_id, set_as_baseline=False, date_str=None, filename=None):
     data  = _load_data()
     racket = _find_racket(data, racket_id)
     if racket is None:
@@ -638,7 +638,7 @@ def _do_analyze(audio_path, racket_id, set_as_baseline=False, date_str=None):
         ra   = None
         status = "baseline_set" if set_as_baseline else "no_baseline"
 
-    now = (_parse_date_from_filename(audio_path)
+    now = (_parse_date_from_filename(filename or audio_path)
            or date_str
            or datetime.now(timezone.utc).isoformat())
     measurement_id = str(uuid.uuid4())
@@ -682,13 +682,15 @@ def _do_analyze(audio_path, racket_id, set_as_baseline=False, date_str=None):
 def cmd_analyze(args):
     if not os.path.exists(args.audio):
         _error(f"音频文件不存在: {args.audio}")
-    _do_analyze(args.audio, args.racket, set_as_baseline=False, date_str=args.date)
+    _do_analyze(args.audio, args.racket, set_as_baseline=False,
+                date_str=args.date, filename=args.filename)
 
 
 def cmd_baseline(args):
     if not os.path.exists(args.audio):
         _error(f"音频文件不存在: {args.audio}")
-    _do_analyze(args.audio, args.racket, set_as_baseline=True, date_str=args.date)
+    _do_analyze(args.audio, args.racket, set_as_baseline=True,
+                date_str=args.date, filename=args.filename)
 
 
 def cmd_promote_baseline(args):
@@ -836,15 +838,17 @@ def main():
 
     # analyze
     p_ana = sub.add_parser("analyze", help="分析音频，保存测量记录")
-    p_ana.add_argument("audio",    help="音频文件路径")
-    p_ana.add_argument("--racket", required=True, help="球拍 ID")
-    p_ana.add_argument("--date",   default=None,  help="录制日期（TG 消息发送时间，ISO 格式）")
+    p_ana.add_argument("audio",      help="音频文件路径")
+    p_ana.add_argument("--racket",   required=True, help="球拍 ID")
+    p_ana.add_argument("--date",     default=None,  help="录制日期（TG 消息发送时间，ISO 格式）")
+    p_ana.add_argument("--filename", default=None,  help="TG 原始文件名（用于从文件名解析日期）")
 
     # baseline
     p_bas = sub.add_parser("baseline", help="分析音频，设为基准频率")
-    p_bas.add_argument("audio",    help="音频文件路径")
-    p_bas.add_argument("--racket", required=True, help="球拍 ID")
-    p_bas.add_argument("--date",   default=None,  help="录制日期（TG 消息发送时间，ISO 格式）")
+    p_bas.add_argument("audio",      help="音频文件路径")
+    p_bas.add_argument("--racket",   required=True, help="球拍 ID")
+    p_bas.add_argument("--date",     default=None,  help="录制日期（TG 消息发送时间，ISO 格式）")
+    p_bas.add_argument("--filename", default=None,  help="TG 原始文件名（用于从文件名解析日期）")
 
     # promote-baseline
     p_promo = sub.add_parser("promote-baseline", help="将已有测量记录设为基准频率（不新增记录）")

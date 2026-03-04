@@ -45,10 +45,11 @@ $PYTHON stringpulse.py delete --racket <racket_id>
 ### 分析音频（测量）
 
 ```bash
-$PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id> [--date <ISO日期>]
+$PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id> [--filename <原始文件名>] [--date <ISO日期>]
 ```
 
-`--date` 为 TG 消息发送时间（ISO 格式，如 `2026-03-04T07:43:00Z`）。**每次调用都应传入**，以便在文件名不含日期时作为回退。
+- `--filename`：TG 消息里的原始文件名（如 `Jan-23-2026.m4a`），用于从文件名解析日期。**优先级最高**，每次调用都应传入（从 `message.document.file_name` 获取）。
+- `--date`：TG 消息发送时间（ISO 格式），作为文件名无日期时的回退。
 
 返回：
 
@@ -108,7 +109,7 @@ $PYTHON stringpulse.py promote-baseline --racket <racket_id> --measurement <meas
   → 执行 list，展示球拍列表，让用户选一只
   → 提示用户录制音频（见下方提示语）
   → 用户发送文件 → 获取 MediaPath
-  → 执行 analyze <MediaPath> --racket <id> --date <TG消息发送时间ISO>
+  → 执行 analyze <MediaPath> --racket <id> --filename <document.file_name> --date <TG消息发送时间ISO>
   → 发送结果图片（image_path 字段），再用 1-2 句总结
 ```
 
@@ -170,9 +171,9 @@ analyze 返回 loss=null / status="no_baseline" 时：
 
 ## 技术说明（供调试参考）
 
-- **记录日期优先级**：① 文件名含日期格式 → 取文件名日期；② 传入 `--date` → 取 TG 消息发送时间；③ 两者均无 → 取当前系统时间
+- **记录日期优先级**：① `--filename` 原始文件名含日期 → 取文件名日期；② `--date` → 取 TG 消息发送时间；③ 两者均无 → 取当前系统时间
   - 支持纯数字：`20260304`、`2026-03-04`、`20260304_143000`
-  - 支持英文月份（缩写或全称，大小写不限）：`Mar-4-2026`、`4-Mar-2026`、`March 4 2026`、`4 March 2026`
+  - 支持英文月份（缩写或全称，大小写不限）：`Jan-23-2026`、`Mar-4-2026`、`4-Mar-2026`、`March 4 2026`
 - **音频格式**：支持 M4A/AAC/WAV/MP4 等，通过 ffmpeg 解码为 PCM float32
 - **FFT 算法**：Cooley-Tukey，窗口大小最大 8192 样本
 - **频率范围**：400–800 Hz（网球拍弦床振动频率范围）
