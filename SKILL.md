@@ -45,11 +45,11 @@ $PYTHON stringpulse.py delete --racket <racket_id>
 ### 分析音频（测量）
 
 ```bash
-$PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id> [--filename <原始文件名>] [--date <ISO日期>]
+$PYTHON stringpulse.py analyze <音频文件路径> --racket <racket_id> --date <ISO日期> [--filename <原始文件名>]
 ```
 
-- `--filename`：TG 消息里的原始文件名（如 `Jan-23-2026.m4a`），用于从文件名解析日期。**优先级最高**，每次调用都应传入（从 `message.document.file_name` 获取）。
-- `--date`：TG 消息发送时间（ISO 格式），作为文件名无日期时的回退。
+- `--date`：**录音日期**（ISO 格式，如 `2026-01-23T00:00:00Z`）。见下方「日期获取规则」。
+- `--filename`：若能获取原始文件名（如 `Jan-23-2026.m4a`）则传入，系统会自动从中解析日期（优先级高于 `--date`）。
 
 返回：
 
@@ -108,8 +108,8 @@ $PYTHON stringpulse.py promote-baseline --racket <racket_id> --measurement <meas
 用户："检测拍线" / "测量球拍" / "看看线床状态"
   → 执行 list，展示球拍列表，让用户选一只
   → 提示用户录制音频（见下方提示语）
-  → 用户发送文件 → 获取 MediaPath
-  → 执行 analyze <MediaPath> --racket <id> --filename <document.file_name> --date <TG消息发送时间ISO>
+  → 用户发送文件 → 获取 MediaPath 和录音日期（见「日期获取规则」）
+  → 执行 analyze <MediaPath> --racket <id> --date <录音日期ISO>
   → 发送结果图片（image_path 字段），再用 1-2 句总结
 ```
 
@@ -131,6 +131,29 @@ analyze 返回 loss=null / status="no_baseline" 时：
 
 ⚠️ **不要**再次执行 `baseline <音频路径>`，否则会产生重复记录。
 `promote-baseline` 直接升级已有记录，不新增测量。
+
+---
+
+## 日期获取规则
+
+**openclaw 框架不保留原始文件名**，文件会被重命名为 `file_N---uuid.m4a`，无法从路径中解析日期。
+
+日期获取优先级：
+
+```
+① 用户消息文字中包含日期
+   → 从中提取（支持 Jan-23-2026 / 2026-01-23 / 1月23日 等格式）
+   → 转为 ISO 格式传入 --date
+
+② 用户消息文字中没有日期
+   → 主动问用户："这个录音是什么时候录的？"
+   → 收到回复后传入 --date
+
+③ 用户明确表示用今天 / 不在意日期
+   → 用 TG 消息时间戳传入 --date
+```
+
+**不要**直接用 TG 消息发送时间作为录音日期——用户可能是翻出旧录音发过来的。
 
 ---
 
@@ -171,9 +194,9 @@ analyze 返回 loss=null / status="no_baseline" 时：
 
 ## 技术说明（供调试参考）
 
-- **记录日期优先级**：① `--filename` 原始文件名含日期 → 取文件名日期；② `--date` → 取 TG 消息发送时间；③ 两者均无 → 取当前系统时间
-  - 支持纯数字：`20260304`、`2026-03-04`、`20260304_143000`
-  - 支持英文月份（缩写或全称，大小写不限）：`Jan-23-2026`、`Mar-4-2026`、`4-Mar-2026`、`March 4 2026`
+- **记录日期**：由 `--date` 传入（agent 从用户消息文字提取，或主动询问）；`--filename` 传入原始文件名时优先从中解析（openclaw 当前不保留原始文件名，此参数备用）
+  - 文件名日期支持纯数字：`20260304`、`2026-03-04`、`20260304_143000`
+  - 文件名日期支持英文月份：`Jan-23-2026`、`Mar-4-2026`、`4-Mar-2026`、`March 4 2026`
 - **音频格式**：支持 M4A/AAC/WAV/MP4 等，通过 ffmpeg 解码为 PCM float32
 - **FFT 算法**：Cooley-Tukey，窗口大小最大 8192 样本
 - **频率范围**：400–800 Hz（网球拍弦床振动频率范围）
