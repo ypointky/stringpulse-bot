@@ -698,7 +698,9 @@ def cmd_baseline(args):
 def _parse_date_from_filename(audio_path):
     """从音频文件名中提取日期，返回 ISO 字符串；识别失败则返回 None。"""
     stem = Path(audio_path).stem
-    patterns = [
+
+    # ── 1. 纯数字格式 ──────────────────────────────────────────────────
+    num_patterns = [
         # YYYY-MM-DD_HH-MM-SS / YYYY.MM.DD HH:MM:SS 等（带时间）
         (r'(\d{4})[-_./](\d{2})[-_./](\d{2})[_ T](\d{2})[-_:.](\d{2})[-_:.](\d{2})', 6),
         # YYYYMMDD_HHMMSS（无分隔符）
@@ -708,7 +710,7 @@ def _parse_date_from_filename(audio_path):
         # YYYYMMDD（纯 8 位，不紧邻其他数字）
         (r'(?<!\d)(\d{4})(\d{2})(\d{2})(?!\d)', 3),
     ]
-    for pat, n in patterns:
+    for pat, n in num_patterns:
         m = re.search(pat, stem)
         if not m:
             continue
@@ -725,6 +727,43 @@ def _parse_date_from_filename(audio_path):
                 return dt.isoformat()
         except ValueError:
             continue
+
+    # ── 2. 含英文月份名的格式（缩写或全称，大小写不限）────────────────
+    # 支持：Mar-4-2026 / 4-Mar-2026 / March 4 2026 / 4 March 2026 等
+    MONTH_MAP = {
+        'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+        'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+        'january': 1, 'february': 2, 'march': 3, 'april': 4,
+        'june': 6, 'july': 7, 'august': 8, 'september': 9,
+        'october': 10, 'november': 11, 'december': 12,
+    }
+    SEP = r'[-_ .]'
+    MON = (r'(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?'
+           r'|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?'
+           r'|Nov(?:ember)?|Dec(?:ember)?)')
+    mon_patterns = [
+        (rf'{MON}{SEP}(\d{{1,2}}){SEP}(\d{{4}})', 'mdy'),  # Mar-4-2026
+        (rf'(\d{{1,2}}){SEP}{MON}{SEP}(\d{{4}})', 'dmy'),  # 4-Mar-2026
+    ]
+    for pat, order in mon_patterns:
+        m = re.search(pat, stem, re.IGNORECASE)
+        if not m:
+            continue
+        g = m.groups()
+        try:
+            if order == 'mdy':
+                mon_str, day, year = g[0], int(g[1]), int(g[2])
+            else:
+                day, mon_str, year = int(g[0]), g[1], int(g[2])
+            month = MONTH_MAP.get(mon_str.lower())
+            if month is None:
+                continue
+            dt = datetime(year, month, day, tzinfo=timezone.utc)
+            if 2000 <= dt.year <= 2100:
+                return dt.isoformat()
+        except ValueError:
+            continue
+
     return None
 
 
